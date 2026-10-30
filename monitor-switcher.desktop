@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Monitor Input Switcher
+Comment=Switch inputs on Dell S2725DS monitors
+Exec=python3 %h/dell-s2725ds-input-switcher/monitor_switch.py
+Icon=monitor-switcher
+Terminal=false
+Categories=Utility;Settings;
+Keywords=monitor;display;ddc;input;dell;
+StartupNotify=true
