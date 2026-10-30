@@ -37,18 +37,17 @@ def switch_input(input_name, display_num):
             "This script is designed for CachyOS/Linux with ddcutil.\n"
             "On Windows, use Dell Display Manager or switch inputs manually on the monitor."
         )
-        return
+        return False
 
     value = INPUTS.get(input_name)
     if not value:
         messagebox.showerror("Error", f"Unknown input: {input_name}")
-        return
+        return False
 
     success, output = run_ddcutil(["setvcp", "60", value], display_num)
-    if success:
-        messagebox.showinfo("Success", f"Switched Display {display_num} to {input_name}")
-    else:
-        messagebox.showerror("Error", f"Failed to switch:\n{output}")
+    if not success:
+        messagebox.showerror("Error", f"Failed to switch Display {display_num}:\n{output}")
+    return success
 
 def get_current_input(display_num):
     if not is_linux():
@@ -66,7 +65,7 @@ class MonitorSwitcher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Monitor Input Switcher")
-        self.geometry("420x320")
+        self.geometry("480x380")
         self.resizable(False, False)
 
         # Title
@@ -88,11 +87,12 @@ class MonitorSwitcher(tk.Tk):
         self.display_var = tk.IntVar(value=1)
         frame = tk.Frame(self)
         frame.pack(pady=5)
-        tk.Radiobutton(frame, text="Display 1 (6WX7614)", variable=self.display_var, value=1).pack(side="left", padx=10)
-        tk.Radiobutton(frame, text="Display 2 (5GF6614)", variable=self.display_var, value=2).pack(side="left", padx=10)
+        tk.Radiobutton(frame, text="Display 1 (6WX7614)", variable=self.display_var, value=1, command=self.update_current).pack(side="left", padx=5)
+        tk.Radiobutton(frame, text="Display 2 (5GF6614)", variable=self.display_var, value=2, command=self.update_current).pack(side="left", padx=5)
+        tk.Radiobutton(frame, text="Both", variable=self.display_var, value=0, command=self.update_current).pack(side="left", padx=5)
 
         # Current input
-        self.current_label = tk.Label(self, text="Current: checking...", fg="gray")
+        self.current_label = tk.Label(self, text="Current: checking...", fg="gray", wraplength=450, justify="center")
         self.current_label.pack(pady=5)
         self.update_current()
 
@@ -114,12 +114,28 @@ class MonitorSwitcher(tk.Tk):
 
     def update_current(self):
         disp = self.display_var.get()
-        current = get_current_input(disp)
-        self.current_label.config(text=f"Display {disp} current: {current}")
+        if disp == 0:
+            c1 = get_current_input(1)
+            c2 = get_current_input(2)
+            self.current_label.config(text=f"Display 1: {c1}\nDisplay 2: {c2}")
+        else:
+            current = get_current_input(disp)
+            self.current_label.config(text=f"Display {disp} current: {current}")
 
     def on_switch(self, input_name):
         disp = self.display_var.get()
-        switch_input(input_name, disp)
+        if disp == 0:
+            # Switch both
+            s1 = switch_input(input_name, 1)
+            s2 = switch_input(input_name, 2)
+            if s1 and s2:
+                messagebox.showinfo("Success", f"Switched both displays to {input_name}")
+            elif s1 or s2:
+                messagebox.showwarning("Partial", f"One or more displays failed to switch to {input_name}")
+        else:
+            success = switch_input(input_name, disp)
+            if success:
+                messagebox.showinfo("Success", f"Switched Display {disp} to {input_name}")
         self.after(500, self.update_current)  # refresh after switch
 
 if __name__ == "__main__":
