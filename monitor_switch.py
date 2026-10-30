@@ -68,6 +68,17 @@ class MonitorSwitcher(tk.Tk):
         self.geometry("480x380")
         self.resizable(False, False)
 
+        # Set window icon if the PNG is next to the script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(script_dir, "monitor_switch.png")
+        if os.path.exists(icon_path):
+            try:
+                img = tk.PhotoImage(file=icon_path)
+                self.iconphoto(True, img)
+                self._icon = img  # keep reference
+            except Exception:
+                pass
+
         # Title
         tk.Label(self, text="Dell S2725DS Input Switcher", font=("Arial", 14, "bold")).pack(pady=10)
 
