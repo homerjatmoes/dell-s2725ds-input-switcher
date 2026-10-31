@@ -92,7 +92,7 @@ class MonitorSwitcher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Monitor Input Switcher")
-        self.geometry("420x360")
+        self.geometry("420x340")
         self.resizable(False, False)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -118,25 +118,19 @@ class MonitorSwitcher(tk.Tk):
             return
 
         body = tk.Frame(self)
-        body.pack(padx=16, fill="x")
+        body.pack(padx=20, fill="x")
 
-        left = tk.Frame(body)
-        left.pack(side="left", padx=(0, 16))
-        tk.Label(left, text="Monitors").pack(anchor="w")
-        self.monitor_list = tk.Listbox(left, height=3, width=24, exportselection=False)
-        for label, _displays in MONITORS:
-            self.monitor_list.insert(tk.END, label)
-        self.monitor_list.selection_set(0)
-        self.monitor_list.pack()
+        left = tk.LabelFrame(body, text="Monitors", padx=8, pady=4)
+        left.pack(side="left", anchor="n", padx=(0, 16))
+        self.monitor_var = tk.IntVar(value=0)
+        for index, (label, _displays) in enumerate(MONITORS):
+            tk.Radiobutton(left, text=label, variable=self.monitor_var, value=index, anchor="w").pack(anchor="w")
 
-        right = tk.Frame(body)
-        right.pack(side="left")
-        tk.Label(right, text="Input").pack(anchor="w")
-        self.input_list = tk.Listbox(right, height=3, width=18, exportselection=False)
+        right = tk.LabelFrame(body, text="Input", padx=8, pady=4)
+        right.pack(side="left", anchor="n")
+        self.input_var = tk.StringVar(value=next(iter(INPUTS)))
         for name in INPUTS:
-            self.input_list.insert(tk.END, name)
-        self.input_list.selection_set(0)
-        self.input_list.pack()
+            tk.Radiobutton(right, text=name, variable=self.input_var, value=name, anchor="w").pack(anchor="w")
 
         self.status = tk.Label(
             self,
@@ -149,28 +143,10 @@ class MonitorSwitcher(tk.Tk):
 
         tk.Button(self, text="Apply", width=16, command=self.on_apply).pack()
 
-    def selected_monitors(self):
-        picked = self.monitor_list.curselection()
-        if not picked:
-            return None
-        return MONITORS[picked[0]]
-
-    def selected_input(self):
-        picked = self.input_list.curselection()
-        if not picked:
-            return None
-        name = self.input_list.get(picked[0])
-        return name, INPUTS[name]
-
     def on_apply(self):
-        monitors = self.selected_monitors()
-        chosen = self.selected_input()
-        if monitors is None or chosen is None:
-            messagebox.showerror("Nothing selected", "Select a monitor and an input first.")
-            return
-
-        label, displays = monitors
-        input_name, value = chosen
+        label, displays = MONITORS[self.monitor_var.get()]
+        input_name = self.input_var.get()
+        value = INPUTS[input_name]
 
         password = ask_password(self)
         if not password:
