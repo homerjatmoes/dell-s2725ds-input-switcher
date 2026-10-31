@@ -3,19 +3,18 @@
 A simple GUI tool to switch the input source on Dell S2725DS monitors using `ddcutil`.
 
 ## Features
-- Switch between DisplayPort, HDMI 1, and HDMI 2
-- Supports two monitors (identified by serial) or both at once
-- Shows current input
+- Pick monitors and an input from lists
+- Apply button asks for the sudo password only after the choice is made
+- Canceling the password box does not call sudo and does not count as a failed login
+- Supports one monitor or both at once
 - Optimized for CachyOS / Linux
 - Optional application menu entry and window icon
-- Uses `pkexec` so a graphical password dialog appears when launched from the menu
 
 ## Requirements
 - Linux (CachyOS recommended)
 - `ddcutil` installed (`sudo pacman -S ddcutil`)
 - DDC/CI enabled in the monitor OSD
 - Python 3 with tkinter (usually pre-installed)
-- `pkexec` (normally provided by polkit, present on most desktops)
 
 ## Usage
 ```bash
@@ -23,7 +22,7 @@ chmod +x monitor_switch.py
 python3 monitor_switch.py
 ```
 
-When you click a switch button, a graphical password dialog will appear (via pkexec).
+Select the monitors and the input, then click Apply. The password box appears only then.
 
 ## Application menu / icon
 1. Place `monitor_switch.png` (the icon) in the same directory as the script.
