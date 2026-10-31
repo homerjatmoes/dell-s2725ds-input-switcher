@@ -3,7 +3,7 @@
 A simple GUI tool to switch the input source on Dell S2725DS monitors using `ddcutil`.
 
 ## Features
-- Pick monitors and an input from lists
+- Pick monitors and an input with radio buttons
 - Apply button asks for the sudo password only after the choice is made
 - Canceling the password box does not call sudo and does not count as a failed login
 - Supports one monitor or both at once
