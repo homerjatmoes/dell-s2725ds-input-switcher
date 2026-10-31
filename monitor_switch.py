@@ -2,6 +2,7 @@
 """
 Dell S2725DS Input Switcher
 Simple GUI for switching monitor inputs via ddcutil (Linux) or a note for Windows.
+Uses pkexec so a graphical password dialog appears when launched from the menu.
 """
 
 import tkinter as tk
@@ -21,11 +22,12 @@ def is_linux():
     return sys.platform.startswith("linux")
 
 def run_ddcutil(args, display=None):
-    cmd = ["sudo", "ddcutil"] + args
+    # Use pkexec so a GUI password dialog appears when launched from the menu
+    cmd = ["pkexec", "ddcutil"] + args
     if display is not None:
         cmd.extend(["--display", str(display)])
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         return result.returncode == 0, result.stdout + result.stderr
     except Exception as e:
         return False, str(e)
