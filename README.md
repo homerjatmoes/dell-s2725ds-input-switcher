@@ -8,12 +8,14 @@ A simple GUI tool to switch the input source on Dell S2725DS monitors using `ddc
 - Shows current input
 - Optimized for CachyOS / Linux
 - Optional application menu entry and window icon
+- Uses `pkexec` so a graphical password dialog appears when launched from the menu
 
 ## Requirements
 - Linux (CachyOS recommended)
 - `ddcutil` installed (`sudo pacman -S ddcutil`)
 - DDC/CI enabled in the monitor OSD
 - Python 3 with tkinter (usually pre-installed)
+- `pkexec` (normally provided by polkit, present on most desktops)
 
 ## Usage
 ```bash
@@ -21,10 +23,7 @@ chmod +x monitor_switch.py
 python3 monitor_switch.py
 ```
 
-Or run with sudo if preferred:
-```bash
-sudo python3 monitor_switch.py
-```
+When you click a switch button, a graphical password dialog will appear (via pkexec).
 
 ## Application menu / icon
 1. Place `monitor_switch.png` (the icon) in the same directory as the script.
