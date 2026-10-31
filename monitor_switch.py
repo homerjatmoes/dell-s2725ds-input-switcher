@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 Dell S2725DS Input Switcher
-Simple GUI for switching monitor inputs via ddcutil (Linux) or a note for Windows.
-Uses pkexec so a graphical password dialog appears when launched from the menu.
+
+Pick the monitors and the input, then click Apply.
+Nothing talks to sudo until Apply. Canceling the password box does not
+count as a failed login.
 """
 
 import tkinter as tk
@@ -11,148 +13,183 @@ import subprocess
 import sys
 import os
 
-# Input source values from your ddcutil capabilities
 INPUTS = {
     "DisplayPort": "0x0f",
     "HDMI 1": "0x11",
     "HDMI 2": "0x12",
 }
 
+MONITORS = [
+    ("Display 1 (6WX7614)", (1,)),
+    ("Display 2 (5GF6614)", (2,)),
+    ("Both monitors", (1, 2)),
+]
+
 def is_linux():
     return sys.platform.startswith("linux")
 
-def run_ddcutil(args, display=None):
-    # Use pkexec so a GUI password dialog appears when launched from the menu
-    cmd = ["pkexec", "ddcutil"] + args
-    if display is not None:
-        cmd.extend(["--display", str(display)])
+def ask_password(parent):
+    """Return the password, or None if the user cancels. Does not call sudo."""
+    dialog = tk.Toplevel(parent)
+    dialog.title("sudo password")
+    dialog.resizable(False, False)
+    dialog.transient(parent)
+    dialog.grab_set()
+
+    tk.Label(
+        dialog,
+        text="Enter your sudo password to apply the change.",
+        padx=12,
+        pady=8,
+    ).pack()
+
+    entry = tk.Entry(dialog, show="*", width=32)
+    entry.pack(padx=12, pady=(0, 8))
+    entry.focus_set()
+
+    result = {"password": None}
+
+    def accept(_event=None):
+        result["password"] = entry.get()
+        dialog.destroy()
+
+    def cancel(_event=None):
+        dialog.destroy()
+
+    buttons = tk.Frame(dialog)
+    buttons.pack(pady=(0, 10))
+    tk.Button(buttons, text="Apply", width=10, command=accept).pack(side="left", padx=6)
+    tk.Button(buttons, text="Cancel", width=10, command=cancel).pack(side="left", padx=6)
+
+    dialog.bind("<Return>", accept)
+    dialog.bind("<Escape>", cancel)
+    dialog.protocol("WM_DELETE_WINDOW", cancel)
+
+    parent.wait_window(dialog)
+    return result["password"]
+
+def sudo_ddcutil(password, displays, value):
+    """One sudo invocation for every selected display."""
+    parts = [
+        f"ddcutil --display {display} setvcp 60 {value}"
+        for display in displays
+    ]
+    script = " && ".join(parts)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        return result.returncode == 0, result.stdout + result.stderr
-    except Exception as e:
-        return False, str(e)
-
-def switch_input(input_name, display_num):
-    if not is_linux():
-        messagebox.showinfo(
-            "Windows",
-            "This script is designed for CachyOS/Linux with ddcutil.\n"
-            "On Windows, use Dell Display Manager or switch inputs manually on the monitor."
+        result = subprocess.run(
+            ["sudo", "-S", "-p", "", "sh", "-c", script],
+            input=password + "\n",
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
-        return False
-
-    value = INPUTS.get(input_name)
-    if not value:
-        messagebox.showerror("Error", f"Unknown input: {input_name}")
-        return False
-
-    success, output = run_ddcutil(["setvcp", "60", value], display_num)
-    if not success:
-        messagebox.showerror("Error", f"Failed to switch Display {display_num}:\n{output}")
-    return success
-
-def get_current_input(display_num):
-    if not is_linux():
-        return "N/A (Windows)"
-    success, output = run_ddcutil(["getvcp", "60"], display_num)
-    if success:
-        # Parse the current value from output
-        for line in output.splitlines():
-            if "Input Source" in line or "sl=" in line:
-                return line.strip()
-        return output.strip() or "Unknown"
-    return "Error reading"
+    except Exception as exc:
+        return False, str(exc)
+    output = (result.stdout or "") + (result.stderr or "")
+    return result.returncode == 0, output.strip()
 
 class MonitorSwitcher(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Monitor Input Switcher")
-        self.geometry("480x380")
+        self.geometry("420x360")
         self.resizable(False, False)
 
-        # Set window icon if the PNG is next to the script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(script_dir, "monitor_switch.png")
         if os.path.exists(icon_path):
             try:
                 img = tk.PhotoImage(file=icon_path)
                 self.iconphoto(True, img)
-                self._icon = img  # keep reference
+                self._icon = img
             except Exception:
                 pass
 
-        # Title
-        tk.Label(self, text="Dell S2725DS Input Switcher", font=("Arial", 14, "bold")).pack(pady=10)
+        tk.Label(self, text="Dell S2725DS Input Switcher", font=("Arial", 14, "bold")).pack(pady=(12, 8))
 
         if not is_linux():
             tk.Label(
                 self,
-                text="Running on Windows.\nUse Dell Display Manager for full control.\n\n"
-                     "This tool is optimized for CachyOS.",
+                text="Running on Windows.\nUse Dell Display Manager for full control.\n\nThis tool is for CachyOS.",
                 fg="blue",
-                justify="center"
+                justify="center",
             ).pack(pady=20)
             tk.Button(self, text="Close", command=self.destroy, width=15).pack(pady=20)
             return
 
-        # Display selection
-        tk.Label(self, text="Select Display:").pack()
-        self.display_var = tk.IntVar(value=1)
-        frame = tk.Frame(self)
-        frame.pack(pady=5)
-        tk.Radiobutton(frame, text="Display 1 (6WX7614)", variable=self.display_var, value=1, command=self.update_current).pack(side="left", padx=5)
-        tk.Radiobutton(frame, text="Display 2 (5GF6614)", variable=self.display_var, value=2, command=self.update_current).pack(side="left", padx=5)
-        tk.Radiobutton(frame, text="Both", variable=self.display_var, value=0, command=self.update_current).pack(side="left", padx=5)
+        body = tk.Frame(self)
+        body.pack(padx=16, fill="x")
 
-        # Current input
-        self.current_label = tk.Label(self, text="Current: checking...", fg="gray", wraplength=450, justify="center")
-        self.current_label.pack(pady=5)
-        self.update_current()
+        left = tk.Frame(body)
+        left.pack(side="left", padx=(0, 16))
+        tk.Label(left, text="Monitors").pack(anchor="w")
+        self.monitor_list = tk.Listbox(left, height=3, width=24, exportselection=False)
+        for label, _displays in MONITORS:
+            self.monitor_list.insert(tk.END, label)
+        self.monitor_list.selection_set(0)
+        self.monitor_list.pack()
 
-        # Buttons
-        tk.Label(self, text="Switch to:").pack(pady=(10, 5))
-        btn_frame = tk.Frame(self)
-        btn_frame.pack(pady=5)
+        right = tk.Frame(body)
+        right.pack(side="left")
+        tk.Label(right, text="Input").pack(anchor="w")
+        self.input_list = tk.Listbox(right, height=3, width=18, exportselection=False)
+        for name in INPUTS:
+            self.input_list.insert(tk.END, name)
+        self.input_list.selection_set(0)
+        self.input_list.pack()
 
-        for name in INPUTS.keys():
-            tk.Button(
-                btn_frame,
-                text=name,
-                width=12,
-                command=lambda n=name: self.on_switch(n)
-            ).pack(side="left", padx=5)
+        self.status = tk.Label(
+            self,
+            text="sudo runs only when you click Apply.",
+            fg="gray",
+            wraplength=380,
+            justify="center",
+        )
+        self.status.pack(pady=16)
 
-        # Refresh button
-        tk.Button(self, text="Refresh Current", command=self.update_current).pack(pady=15)
+        tk.Button(self, text="Apply", width=16, command=self.on_apply).pack()
 
-    def update_current(self):
-        disp = self.display_var.get()
-        if disp == 0:
-            c1 = get_current_input(1)
-            c2 = get_current_input(2)
-            self.current_label.config(text=f"Display 1: {c1}\nDisplay 2: {c2}")
+    def selected_monitors(self):
+        picked = self.monitor_list.curselection()
+        if not picked:
+            return None
+        return MONITORS[picked[0]]
+
+    def selected_input(self):
+        picked = self.input_list.curselection()
+        if not picked:
+            return None
+        name = self.input_list.get(picked[0])
+        return name, INPUTS[name]
+
+    def on_apply(self):
+        monitors = self.selected_monitors()
+        chosen = self.selected_input()
+        if monitors is None or chosen is None:
+            messagebox.showerror("Nothing selected", "Select a monitor and an input first.")
+            return
+
+        label, displays = monitors
+        input_name, value = chosen
+
+        password = ask_password(self)
+        if not password:
+            self.status.config(text="Canceled. Nothing was sent.")
+            return
+
+        try:
+            ok, output = sudo_ddcutil(password, displays, value)
+        finally:
+            password = None
+
+        if ok:
+            self.status.config(text=f"{label} set to {input_name}.")
+            messagebox.showinfo("Applied", f"{label} switched to {input_name}.")
         else:
-            current = get_current_input(disp)
-            self.current_label.config(text=f"Display {disp} current: {current}")
-
-    def on_switch(self, input_name):
-        disp = self.display_var.get()
-        if disp == 0:
-            # Switch both
-            s1 = switch_input(input_name, 1)
-            s2 = switch_input(input_name, 2)
-            if s1 and s2:
-                messagebox.showinfo("Success", f"Switched both displays to {input_name}")
-            elif s1 or s2:
-                messagebox.showwarning("Partial", f"One or more displays failed to switch to {input_name}")
-        else:
-            success = switch_input(input_name, disp)
-            if success:
-                messagebox.showinfo("Success", f"Switched Display {disp} to {input_name}")
-        self.after(500, self.update_current)  # refresh after switch
+            self.status.config(text="Apply failed.")
+            messagebox.showerror("Error", output or "sudo or ddcutil failed.")
 
 if __name__ == "__main__":
-    # Check if ddcutil is available on Linux
     if is_linux():
         try:
             subprocess.run(["ddcutil", "--version"], capture_output=True, check=True)
